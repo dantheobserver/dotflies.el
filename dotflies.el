@@ -103,7 +103,7 @@ and will have your linked paths stored."
 
 (defun dotflies/-load-config-commands ()
   (let* ((commands (seq-map #'dotflies/cfg->cmd (dotflies/config-data))))
-    (seq-map #'dotflies/cmd-(format "message" format-args)orm commands)))
+    (seq-map #'dotflies/cmd-form commands)))
 
 (defun dotflies/run-config ()
   (dotflies/cmd ,@(dotflies/-load-cofing-commands)))

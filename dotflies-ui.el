@@ -2,28 +2,37 @@
 (require 's)
 
 ;; TODO: Autoloads
-
 (defvar dotflies-ui-buffer-name "*dotflies-explorer*")
 
-(defun spaced-str (str width margin)
+(defun dotflies-ui--ellipsize (str max-width)
+  (let ((str-len (length str)))
+    (if (< max-width str-len)
+	(let ((substr (substring str 0 (- max-width 3))))
+	  (s-concat substr "..."))
+      str)))
+
+(defun dotflies-ui--cell-str (str width &optional margin truncate)
   "Reurn a `string' spaced properly with `width' and added `margin'"
   (let* ((str-count (length str))
-	 (real-margin (+ margin
-			 (- width str-count))))
-    (s-concat str
+	 (real-margin (+ (or margin 0)
+			 (- width str-count)))
+	 (final-str (if truncate
+			(dotflies-ui--ellipsize str width)
+		      str)))
+    (s-concat final-str
 	      (s-repeat real-margin " "))))
-
 
 (defun dotflies-ui--entry-str (str entry)
   (let ((alias-col-width 10)
+	(loc-col-width 2)
 	(margin 5))
     (seq-let [alias-sym location] entry
       (s-concat str
 		"* "
-		(spaced-str (symbol-name alias-sym)
-			    alias-col-width
-			    margin)
-		location
+		(dotflies-ui--cell-str (symbol-name alias-sym)
+				       alias-col-width
+				       margin)
+		(dotflies-ui--cell-str location loc-col-width nil t)
 		"\n"))))
 
 (defun dotflies-ui-display-config (config-file)
@@ -38,7 +47,9 @@
       (read-only-mode)
       (Electric-pop-up-window buffer 12))))
 
+;; Comment block
 (comment
+ (dotflies-ui-display-config nil) 
  (let* ((buffer-name "*testing*")
 	(buffer (get-buffer-create buffer-name)))
    (with-current-buffer buffer
@@ -49,9 +60,8 @@
  (dolist a b)
  (Electric-pop-up-window "*testing")
 
- (spaced-str "hello11111" 10 10)
+ (dotflies-ui--cell-str "hello11111" 10 10)
 
- (dotflies-ui-display-config nil)
  ;; table macro 
  (buffer-table
   table-source
