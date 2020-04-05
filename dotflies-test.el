@@ -5,5 +5,5 @@
 (let ((evil-collection-dir (f-parent (f-dirname (f-this-file)))))
   (add-to-list 'load-path evil-collection-dir))
 
-(require 'evil-collection)
+;; (require 'evil-collection)
 ;;; test-dotflies.el ends here

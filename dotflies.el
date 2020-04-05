@@ -17,6 +17,9 @@
 
 (defmacro comment (&rest body) nil)
 
+(define-minor-mode dotflies-mode
+  :init-value nil)
+
 (defcustom dotflies/default-config-dir "~/dotfiles-test"
   "The directory that will be used to operate on configs
 and will have your linked paths stored."
@@ -27,28 +30,49 @@ and will have your linked paths stored."
   "Name of the default config file."
   :type 'string)
 
-(defun dotflies/env-path (path)
-  (s-replace "~" (getenv "HOME") path))
+(defun dotflies--join-paths (paths &optional base)
+  (s-join "/" (cons (s-replace "~" (getenv "HOME") base) paths)))
 
-(defun dotflies--resolved-path (&rest paths)
-  (dotflies/env-path
-   (s-join "/" (cons dotflies/default-config-dir paths))))
+(defun dotflies--config-relative-path (&rest paths)
+  (dotflies--join-paths paths dotflies/default-config-dir))
 
+(defun dotflies--home-relative-path (&rest paths)
+  (dotflies--join-paths paths "~"))
 
-(defun dotflies/config-path ()
-  (dotflies--resolved-path  
-   dotflies/default-config-file))
+(comment
+ (dotflies--home-relative-path "projects" "something") ;; "/home/deepe/projects/something"
+ (dotflies--config-relative-path "projects" "something") ;; "/home/deepe/dotfiles-test/projects/something"
+ (dotflies--config-relative-path) ;;"/home/deepe/dotfiles-test"
+ (dotflies--home-relative-path ;; "/home/deepe"
+  ))
 
-(defun dotflies--call-form (cmd-form)
+(defun dotflies--call-form (cmd-form &optional output)
   (seq-let [cmd-sym &rest args] cmd-form
-    `(call-process ,(symbol-name cmd-sym) nil nil t ,@args)))
+    `(call-process ,(symbol-name cmd-sym) nil ,output t ,@args)))
+
+(comment
+ (macroexpand-all (dotflies--call-form '(lsa)))
+ ;; (call-process "lsa" nil nil t)
+ (macroexpand-all (dotflies--call-form '(lsa) t))
+ ;; (call-process "lsa" nil t t)
+ (macroexpand-all (dotflies--call-form '(lsa -a --test)))
+ ;; (call-process "lsa" nil output t -a --test))
 
 (defun dotflies--condition-form (cmd-forms)
-  (let ((call-forms (seq-map #'dotflies--call-form cmd-forms)))
-    `(condition-case err
-	 (progn
-	   ,@call-forms)
-       (error err))))
+  `(condition-case err
+       (progn
+	 ,@(seq-map #'dotflies--call-form cmd-forms)
+	 ,@call-forms)
+     (error err)))
+
+(comment
+ (macroexpand-all (dotflies--condition-form (list '(ps "aux"))))
+ ;;(condition-case err (progn (call-process "ps" nil nil t "aux")) (error err))
+ (with-temp-buffer
+   (let ((status (call-process "ps" nil t t "-aux"))
+	 (output-str (buffer-substring-no-properties (buffer-end -1) (buffer-end 1))))
+     `(,status . ,output-str)))
+ 
 
 (defun dotflies/config-data ()
   (with-temp-buffer
@@ -71,7 +95,7 @@ and will have your linked paths stored."
 ;; + A config.yml file will be created
 (defun dotflies/init-dotflies ()
   "Initializes dotfile directory and file"
-  (let ((res-path (dotflies/env-path dotflies/default-config-dir)))
+  (let ((res-path (dotflies/home-relative-path dotflies/default-config-dir)))
     (dotflies/cmd 
      (mkdir res-path)
      (touch (dotflies/config-path)))))
@@ -87,8 +111,8 @@ and will have your linked paths stored."
 ;;   and the symlink will exist in the original path.
 (defun dotflies/cfg->cmd (cfg-entry)
   (seq-let [symlink-name source] cfg-entry
-    (let ((path-to-symlink (dotflies--resolved-path (symbol-name symlink-name)))
-	  (path-to-source (dotflies/env-path source)))
+    (let ((path-to-symlink (dotflies--home-relative-path (symbol-name symlink-name)))
+	  (path-to-source (dotflies/home-relative-path source)))
       (list
        `(test "-f" ,path-to-symlink)
        `(mv ,path-to-source ,path-to-symlink)
@@ -113,11 +137,11 @@ and will have your linked paths stored."
 (comment
  (with-temp-buffer
    ;;=> 1 doesn't exist
-   (= 1 (call-process "test" nil t nil "-f" (dotflies--resolved-path "something")))
-   (call-process "test" nil t nil "-f" (dotflies--resolved-path "something"))
+   (= 1 (call-process "test" nil t nil "-f" (dotflies--home-relative-path "something")))
+   (call-process "test" nil t nil "-f" (dotflies--home-relative-path "something"))
    (call-process-shell-command "test -f someting" nil nil t)
    ;;=> 0 does exist
-   (= 0 (call-process "test" nil t nil "-f" (dotflies--resolved-path "testing")))
+   (= 0 (call-process "test" nil t nil "-f" (dotflies--home-relative-path "testing")))
    (buffer-string))
  s-join "/" (cons dotflies/default-config-dir nil) '("test")
  )
