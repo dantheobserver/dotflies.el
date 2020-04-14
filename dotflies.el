@@ -15,36 +15,42 @@
 (require 's)
 (require 'dash)
 
+;; sample Config
+'(:name "My Files"
+  :paths
+  '((:title "Some App Config"
+     :origin "~/.config/some-app-cfg"
+     :path "./some-app-config"
+     )))
+
+
 (defmacro comment (&rest body) nil)
 
-(define-minor-mode dotflies-mode
-  :init-value nil)
+;; (setq dotflies-highlights
+;;       '(("\\|Cos\\|Sum" . font-lock-function-name-face)
+;;         ("Pi\\|Infinity" . font-lock-constant-face)))
 
-(defcustom dotflies/default-config-dir "~/dotfiles-test"
-  "The directory that will be used to operate on configs
-and will have your linked paths stored."
-  :type 'string)
+
+(define-derived-mode dotflies-mode fundamental-mode "Dotflies"
+  "Major mode for Displayig dotflies project")
+
+
 
 ;; TODO - Maybe use custom DSL that is elisp parsable
-(defcustom dotflies/default-config-file "dfconfig"
+(defcustom dotflies/default-config-file ".dfconfig"
   "Name of the default config file."
   :type 'string)
 
 (defun dotflies--join-paths (paths &optional base)
   (s-join "/" (cons (s-replace "~" (getenv "HOME") base) paths)))
 
-(defun dotflies--config-relative-path (&rest paths)
-  (dotflies--join-paths paths dotflies/default-config-dir))
-
 (defun dotflies--home-relative-path (&rest paths)
   (dotflies--join-paths paths "~"))
 
 (comment
- (dotflies--home-relative-path "projects" "something") ;; "/home/deepe/projects/something"
- (dotflies--config-relative-path "projects" "something") ;; "/home/deepe/dotfiles-test/projects/something"
- (dotflies--config-relative-path) ;;"/home/deepe/dotfiles-test"
- (dotflies--home-relative-path ;; "/home/deepe"
-  ))
+ (dotflies--home-relative-path) ;; "/home/deepe"
+ )
+
 
 (defun dotflies--call-form (cmd-form &optional output)
   (seq-let [cmd-sym &rest args] cmd-form
@@ -58,12 +64,14 @@ and will have your linked paths stored."
  (macroexpand-all (dotflies--call-form '(lsa -a --test)))
  ;; (call-process "lsa" nil output t -a --test))
 
-(defun dotflies--condition-form (cmd-forms)
-  `(condition-case err
-       (progn
-	 ,@(seq-map #'dotflies--call-form cmd-forms)
-	 ,@call-forms)
-     (error err)))
+ (defun dotflies--condition-form (cmd-forms)
+   `(condition-case err
+	(progn
+	  ,@(seq-map #'dotflies--call-form cmd-forms)
+	  ,@call-forms)
+      (error err)))
+
+ (defmacro )
 
 (comment
  (macroexpand-all (dotflies--condition-form (list '(ps "aux"))))

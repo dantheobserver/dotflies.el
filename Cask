@@ -3,7 +3,6 @@
 
 (package-file "dotflies.el")
 
-(depends-on "edn")
 (depends-on "s")
 (depends-on "dash")
 

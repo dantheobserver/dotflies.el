@@ -2,63 +2,90 @@
 (require 's)
 
 ;; TODO: Autoloads
-(defvar dotflies-ui-buffer-name "*dotflies-explorer*")
-(defvar dotflies-ui-state '((cfg-line . 0)))
+(defvar dotflies-ui--buffer-name "*dotflies*")
+(defvar dotflies-ui--default-state '(:row-selected 0
+				     :col-selected 1))
+(defconst dotflies-ui--cell-width 12)
+;; phase 2, basic ui functions with updates
+;; phased 3, style
+;; TODO: Derive from tabulated-list-mode?
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Tabulated-List-Mode.html
 
-;; Faces
-(defface dotflies-ui-title
-  '((t :background "DarkGrey"))
-  "Face for title text")
+(defvar dotflies-mode-keymap
+  (-let [map (make-sparse-keymap)]
+    (define-key map "h" #'tabulated-list-)
+    (define-key map "j" 'down)
+    (define-key map "k" 'down)
+    (define-key map "l" 'down)
+    map))
 
-(defun dotflies-ui--ellipsize (str max-width)
-  (let ((str-len (length str)))
-    (if (< max-width str-len)
-	(let ((substr (substring str 0 (- max-width 3))))
-	  (s-concat substr "..."))
-      str)))
+(define-derived-mode
+  dotflies-mode
+  tabulated-list-mode
+  "Dotflies"
+  "Major mode for dotfiles configurations")
 
-(defun dotflies-ui--cell-str (str width &optional margin truncate)
-  "Reurn a `string' spaced properly with `width' and added `margin'"
-  (let* ((str-count (length str))
-	 (real-margin (+ (or margin 0)
-			 (- width str-count)))
-	 (final-str (if truncate
-			(dotflies-ui--ellipsize str width)
-		      str)))
-    (s-concat final-str
-	      (s-repeat real-margin " "))))
+;; Write-fns
+(defun dotflies-ui--tabular-columns (columns)
+  `[,@(-map (lambda (col)
+	      `(,col ,dotflies-ui--cell-width nil))
+	    columns)])
 
-(defun dotflies-ui--entry-str (str entry)
-  (let ((alias-col-width 10)
-	(loc-col-width 2)
-	(margin 5))
-    (seq-let [alias-sym location] entry
-      (s-concat str
-		"* "
-		(dotflies-ui--cell-str (symbol-name alias-sym)
-				       alias-col-width
-				       margin)
-		(dotflies-ui--cell-str location loc-col-width nil t)
-		"\n"))))
+(defun dotflies-ui--tabular-rows (rows)
+  (-map-indexed (lambda (idx row)
+		  `(,idx [,@row]))
+		rows))
 
-(defun dotflies-ui-display-config ()
-  (interactive)
-  (let* ((buffer (get-buffer-create dotflies-ui-buffer-name))
-	 (dummy-config '((testing "~/examples/testfile_1")
-			 (other "~/examples/test-file-2")))
-	 (entry-rows (seq-reduce #'dotflies-ui--entry-str dummy-config "")))
-    (with-current-buffer buffer
-      (setq-local font-lock-mode nil)
-      (read-only-mode -1)
-      (insert (propertize "Dotflies Configs" 'face 'italic) "\n")
-      (insert entry-rows)
-      (read-only-mode)
-      (Electric-pop-up-window buffer 12)
-      (read-only-mode 1))))
+(defun dotflies-ui--printer (id cols)
+  (-let [str-cols (-map (lambda (val)
+			  (cond
+			   ((null val) "")
+			   ((or (symbolp val) (keywordp val))
+			    (->> (symbol-name val)
+				 (s-replace ":" "")
+				 (s-replace "-" " ")
+				 (s-titleize)))
+			   (:else val)))
+			cols)]
+    (tabulated-list-print-entry id `[,@str-cols])))
+
+(defun dotflies-ui--grid (columns rows)
+  (with-current-buffer (get-buffer-create dotflies-ui--buffer-name)
+    ;; (popwin:display-buffer (current-buffer))
+    (setq tabulated-list-printer #'dotflies-ui--printer)
+    (setq tabulated-list-format (dotflies-ui--tabular-columns columns))
+    (setq tabulated-list-entries (dotflies-ui--tabular-rows rows))
+    (tabulated-list-init-header)
+    (tabulated-list-print))) 
 
 ;; Comment block
 (defmacro comment (&rest body) nil)
+
 (comment
+ ;; (setq tabulated-list-format (vector 
+ ;; 			     (list "name" dotflies-ui--cell-width nil)
+ ;; 			     (list "value" dotflies-ui--cell-width nil)))
+ ;; (setq tabulated-list-entries (list
+ ;; 			      '(0 ["A" "B"])
+ ;; 			      '(1 ["C" "D"])
+ ;; 			      '(2 ["Testingianiginagiangtiahtiahti" "Test"])))
+ (dotflies-ui--grid '("Config Name" "Location" "Backup Dir" "Active")
+		    '(("emacs" "~/.emacs" "/emacs" :linked)
+		      ("clojure" "~/.clojure/deps.edn" "/clj-deps" :not-linked)))
+
+ (dotflies-ui--cell-padding "~/.clojure/deps.edn" 10 5 t)
+ )
+
+(comment
+ (comment
+  (dotflies-ui--tabular-columns
+   '("Config Name" "Location" "Backup Dir" "Active"))
+  ;; (("Config Name" 12 nil) ("Location" 12 nil) ("Backup Dir" 12 nil) ("Active" 12 nil))
+  (dotflies-ui--tabular-rows
+   '(("emacs" "~/.emacs" "/emacs" :linked)
+     ("clojure" "~/.clojure/deps.edn" "/clj-deps" :not-linked)))
+  )
+
  (dotflies-ui-display-config nil) 
  (let* ((buffer-name "*testing*")
 	(buffer (get-buffer-create buffer-name)))
@@ -82,3 +109,6 @@
  (insert (propertize "\n\ntesting" 'face 'button))
 
  )
+
+(provide 'dotflies-ui)
+
